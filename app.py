@@ -40,7 +40,11 @@ if uploaded_file is not None:
     # Process the file to MP3
     st.subheader("Processing file")
     with st.spinner("Processing the file to extract audio..."):
-        mp3_data = process_file_to_mp3(uploaded_file)
+        try:
+            mp3_data = process_file_to_mp3(uploaded_file)
+        except Exception as e:
+            st.error(f"Error during audio processing: {e}")
+            st.stop()  # Stop execution if processing fails
 
     if mp3_data:
         # Display video for video files, or audio for audio files
