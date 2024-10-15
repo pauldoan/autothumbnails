@@ -66,24 +66,30 @@ if uploaded_file is not None:
                 "vaibhavs10/incredibly-fast-whisper:3ab86df6c8f54c11309d4d1f930ac292bad43ace52d10c80d87eb258b3c9f79c",
                 input=input_audio,
             )
+        if transcript_output:
+            st.write("✅ Transcription completed")
 
         transcript_text = transcript_output.get("text", "")
         st.write(transcript_text)
 
-        # Summarize the transcript
-        st.subheader("Summarizing transcript", divider=True)
-        with st.spinner("Generating a concise summary of the content..."):
-            prompt = f"Create an engaging and concise YouTube video description for the following transcript: {transcript_text}. Only output the description."
-            summary_output = replicate.run("meta/meta-llama-3-8b-instruct", input={"prompt": prompt})
-            summary = "".join(summary_output)
-
-        st.write(summary)
-
         # Generate images
         st.subheader("Generating thumbnails", divider=True)
+
+        with st.spinner("Generating a concise summary of the content..."):
+            prompt = f"Create an well thought prompt for a image generation model to generate an engaging thumbnail for the following social media video description: {transcript_text}. Only output the prompt."
+            image_prompt = replicate.run("meta/meta-llama-3-8b-instruct", input={"prompt": prompt})
+            image_prompt = "".join(image_prompt)
+
+        if image_prompt:
+            st.write("✅ Summary generated")
+        print(image_prompt)
+
         with st.spinner("Creating thumbnails based on the summary..."):
-            image_input = {"prompt": summary, "num_outputs": num_thumbnails, "output_quality": 100}
+            image_input = {"prompt": image_prompt, "num_outputs": num_thumbnails, "output_quality": 100}
             image_outputs = replicate.run("black-forest-labs/flux-schnell", input=image_input)
+
+        if image_outputs:
+            st.write("✅ Thumbnails generated")
 
         # Display images directly
         cols = st.columns(len(image_outputs))
