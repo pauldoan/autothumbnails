@@ -128,7 +128,7 @@ if uploaded_file is not None:
             st.subheader("Generating thumbnails", divider=True)
 
             with st.spinner("Generating a concise summary of the content..."):
-                prompt = f"Create an well thought prompt for a image generation model to generate an engaging realistic photography thumbnail for the following social media video description: {transcript_text}. Only output the prompt."
+                prompt = f"Create an well thought prompt for a image generation model to generate an engaging realistic photography thumbnail for the following social media video description. Make sure we do not have someone in the foreground as it could be misleading if different from the creator. Description: {transcript_text}. Only output the prompt."
                 image_prompt = replicate.run("meta/meta-llama-3-8b-instruct", input={"prompt": prompt})
                 image_prompt = "".join(image_prompt)
 
