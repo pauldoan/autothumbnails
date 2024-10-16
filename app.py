@@ -6,23 +6,51 @@ import dotenv
 from utils import process_file_to_mp3, get_file_type  # Ensure get_file_type is imported
 from PIL import Image
 from io import BytesIO
+import time
 
 # Load environment variables
 dotenv.load_dotenv()
 replicate_api_token = os.getenv("REPLICATE_API_TOKEN")
 
 # Set the Replicate API token
-replicate.Client(api_token=replicate_api_token)
+replicate.Client(api_token=replicate_api_token, timeout=180)
 
 # Streamlit title
 st.set_page_config(page_title="Autothumbnails")
 st.title("Auto Thumbnails 🎥")
+
+st.markdown(
+    """
+    Welcome to **Auto Thumbnails**! 🎈
+    This app (inspired by my usage of Captions) lets you upload a video or audio file, and it will automatically transcribe, summarize,
+    and generate custom YouTube-style thumbnails based on the content, using only open-source models!
+
+    Perfect for content creators
+    looking to quickly produce high-quality thumbnails for their videos.
+    Just upload a file, select the number of thumbnails, the image generation model, and watch the magic happen!
+
+    Cheers,
+
+    Paul 📸
+    """
+)
 
 # File uploader for audio or video files
 uploaded_file = st.file_uploader("Upload an audio or video file", type=["mp3", "m4a", "wav", "mp4", "mov", "avi"])
 
 # Input for number of thumbnails to generate
 num_thumbnails = st.number_input("Number of thumbnails to generate", min_value=1, max_value=4, value=4, step=1)
+
+# Image generation model selector
+model_options = {
+    "Flux Schnell (default)": "black-forest-labs/flux-schnell",
+    "Flux Dev": "black-forest-labs/flux-dev",
+    "Stable Diffusion": "stability-ai/stable-diffusion:ac732df83cea7fff18b8472768c88ad041fa750ff7682a21affe81863cbe77e4",
+    "SDXL Lightning": "bytedance/sdxl-lightning-4step:5599ed30703defd1d160a25a63321b4dec97101d98b4674bcc56e41f62f35637",
+}
+
+selected_model = st.selectbox("Choose the Image Generation Model", options=list(model_options.keys()), index=0)
+image_generation_model = model_options[selected_model]
 
 # If a file is uploaded, proceed with the processing
 if uploaded_file is not None:
@@ -49,56 +77,79 @@ if uploaded_file is not None:
     if mp3_data:
         # Display video for video files, or audio for audio files
         if file_type == "video":
-            st.video(uploaded_file)  # Display the video directly
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                st.video(uploaded_file)  # Display the video directly
         else:
             st.audio(mp3_data.getvalue(), format="audio/mp3")
 
-        # Prepare for Speech-to-Text
-        input_audio = {
-            "audio": mp3_data,
-            "batch_size": 64,
-        }
+        # Add a button to start generating thumbnails
+        generate_button = st.button("Generate Thumbnails 📸")
 
-        # Run the Speech-to-Text model
-        st.subheader("Captions Generation", divider=True)
-        with st.spinner("Transcribing audio to text..."):
-            transcript_output = replicate.run(
-                "vaibhavs10/incredibly-fast-whisper:3ab86df6c8f54c11309d4d1f930ac292bad43ace52d10c80d87eb258b3c9f79c",
-                input=input_audio,
-                timeout=180,
-            )
-        if transcript_output:
-            st.write("✅ Transcription completed")
+        # When the button is clicked, proceed with transcription, summarization, and thumbnail generation
+        if generate_button:
 
-        transcript_text = transcript_output.get("text", "")
-        st.write(transcript_text)
+            # Prepare for Speech-to-Text
+            input_audio = {
+                "audio": mp3_data,
+                "batch_size": 64,
+            }
 
-        # Generate images
-        st.subheader("Generating thumbnails", divider=True)
+            # Run the Speech-to-Text model
+            st.subheader("Captions Generation", divider=True)
 
-        with st.spinner("Generating a concise summary of the content..."):
-            prompt = f"Create an well thought prompt for a image generation model to generate an engaging thumbnail for the following social media video description: {transcript_text}. Only output the prompt."
-            image_prompt = replicate.run("meta/meta-llama-3-8b-instruct", input={"prompt": prompt})
-            image_prompt = "".join(image_prompt)
+            max_retries = 3  # Maximum number of retries
+            retry_delay = 2  # Delay between retries in seconds
+            transcript_output = None
 
-        if image_prompt:
-            st.write("✅ Summary generated")
-        print(image_prompt)
+            for attempt in range(max_retries):
+                try:
+                    with st.spinner(
+                        "Transcribing audio to text...This can take a few seconds if the model is cold on Replicate..."
+                    ):
+                        transcript_output = replicate.run(
+                            "vaibhavs10/incredibly-fast-whisper:3ab86df6c8f54c11309d4d1f930ac292bad43ace52d10c80d87eb258b3c9f79c",
+                            input=input_audio,
+                        )
+                    if transcript_output:
+                        st.write("✅ Transcription completed")
+                        break  # Exit the loop if successful
+                except Exception as e:
+                    print(e)
+                    time.sleep(retry_delay)
+            else:
+                # This block runs if all retries fail
+                st.error("Transcription failed after multiple attempts.")
 
-        with st.spinner("Creating thumbnails based on the summary..."):
-            image_input = {"prompt": image_prompt, "num_outputs": num_thumbnails, "output_quality": 100}
-            image_outputs = replicate.run("black-forest-labs/flux-schnell", input=image_input)
+            transcript_text = transcript_output.get("text", "")
+            st.write(transcript_text)
 
-        if image_outputs:
-            st.write("✅ Thumbnails generated")
+            # Generate images
+            st.subheader("Generating thumbnails", divider=True)
 
-        # Display images directly
-        cols = st.columns(len(image_outputs))
-        for idx, image_output in enumerate(image_outputs):
-            # If image_output is an in-memory file-like object, read directly from it
-            img = Image.open(BytesIO(image_output.read()))  # Open directly without further requests
-            with cols[idx]:
-                st.image(img, caption=f"Thumbnail {idx + 1}", use_column_width=True)
+            with st.spinner("Generating a concise summary of the content..."):
+                prompt = f"Create an well thought prompt for a image generation model to generate an engaging realistic photography thumbnail for the following social media video description: {transcript_text}. Only output the prompt."
+                image_prompt = replicate.run("meta/meta-llama-3-8b-instruct", input={"prompt": prompt})
+                image_prompt = "".join(image_prompt)
+
+            if image_prompt:
+                st.write("✅ Summary generated")
+            print(image_prompt)
+
+            with st.spinner("Creating thumbnails based on the summary..."):
+                image_input = {"prompt": image_prompt, "num_outputs": num_thumbnails, "output_quality": 100}
+                image_outputs = replicate.run(image_generation_model, input=image_input)
+
+            if image_outputs:
+                st.write("✅ Thumbnails generated")
+
+            # Display images directly
+            cols = st.columns(len(image_outputs))
+            for idx, image_output in enumerate(image_outputs):
+                # If image_output is an in-memory file-like object, read directly from it
+                img = Image.open(BytesIO(image_output.read()))  # Open directly without further requests
+                with cols[idx]:
+                    st.image(img, caption=f"Thumbnail {idx + 1}", use_column_width=True)
 
     else:
         st.error("Unable to process the file.")
