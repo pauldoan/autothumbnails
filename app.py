@@ -13,7 +13,7 @@ dotenv.load_dotenv()
 replicate_api_token = os.getenv("REPLICATE_API_TOKEN")
 
 # Set the Replicate API token
-replicate.Client(api_token=replicate_api_token, timeout=180)
+replicate.Client(api_token=replicate_api_token, timeout=300)
 
 # Streamlit title
 st.set_page_config(page_title="Autothumbnails")
@@ -43,8 +43,8 @@ num_thumbnails = st.number_input("Number of thumbnails to generate", min_value=1
 
 # Image generation model selector
 model_options = {
-    "Flux Schnell (default)": "black-forest-labs/flux-schnell",
     "Flux Dev": "black-forest-labs/flux-dev",
+    "Flux Schnell (faster)": "black-forest-labs/flux-schnell",
     "Stable Diffusion": "stability-ai/stable-diffusion:ac732df83cea7fff18b8472768c88ad041fa750ff7682a21affe81863cbe77e4",
     "SDXL Lightning": "bytedance/sdxl-lightning-4step:5599ed30703defd1d160a25a63321b4dec97101d98b4674bcc56e41f62f35637",
 }
@@ -102,34 +102,49 @@ if uploaded_file is not None:
             retry_delay = 2  # Delay between retries in seconds
             transcript_output = None
 
-            for attempt in range(max_retries):
-                try:
-                    with st.spinner(
-                        "Transcribing audio to text...This can take a few seconds if the model is cold on Replicate..."
-                    ):
+            with st.spinner(
+                "Transcribing audio to text...This can take a few seconds if the model is cold on Replicate..."
+            ):
+                for attempt in range(max_retries):
+                    try:
                         transcript_output = replicate.run(
                             "vaibhavs10/incredibly-fast-whisper:3ab86df6c8f54c11309d4d1f930ac292bad43ace52d10c80d87eb258b3c9f79c",
                             input=input_audio,
+                            wait=True,
                         )
-                    if transcript_output:
-                        st.write("✅ Transcription completed")
-                        break  # Exit the loop if successful
-                except Exception as e:
-                    print(e)
-                    time.sleep(retry_delay)
-            else:
-                # This block runs if all retries fail
-                st.error("Transcription failed after multiple attempts.")
+                        if transcript_output:
+                            break  # Exit the loop if successful
 
-            transcript_text = transcript_output.get("text", "")
-            st.write(transcript_text)
+                    except Exception as e:
+                        print(e)
+                        time.sleep(retry_delay)
+                else:
+                    # This block runs if all retries fail
+                    st.error("Transcription failed after multiple attempts.")
+
+            if transcript_output:
+                st.write("✅ Transcription completed")
+                transcript_text = transcript_output.get("text", "")
+                st.write(transcript_text)
 
             # Generate images
             st.subheader("Generating thumbnails", divider=True)
 
             with st.spinner("Generating a concise summary of the content..."):
                 prompt = f"Create an well thought prompt for a image generation model to generate an engaging realistic photography thumbnail for the following social media video description. Make sure we do not have someone in the foreground as it could be misleading if different from the creator. Description: {transcript_text}. Only output the prompt."
-                image_prompt = replicate.run("meta/meta-llama-3-8b-instruct", input={"prompt": prompt})
+
+                for attempt in range(max_retries):
+                    try:
+                        image_prompt = replicate.run(
+                            "meta/meta-llama-3-8b-instruct", input={"prompt": prompt}, wait=True
+                        )
+                        if image_prompt:
+                            break  # Exit the loop if successful
+                    except Exception as e:
+                        print(e)
+                        time.sleep(retry_delay)
+                else:
+                    st.error("Summary generation failed after multiple attempts.")
                 image_prompt = "".join(image_prompt)
 
             if image_prompt:
@@ -138,7 +153,22 @@ if uploaded_file is not None:
 
             with st.spinner("Creating thumbnails based on the summary..."):
                 image_input = {"prompt": image_prompt, "num_outputs": num_thumbnails, "output_quality": 100}
-                image_outputs = replicate.run(image_generation_model, input=image_input)
+
+                for attempt in range(max_retries):
+                    try:
+                        image_input = {
+                            "prompt": "".join(image_prompt),
+                            "num_outputs": num_thumbnails,
+                            "output_quality": 100,
+                        }
+                        image_outputs = replicate.run(image_generation_model, input=image_input, wait=True)
+                        if image_outputs:
+                            break  # Exit the loop if successful
+                    except Exception as e:
+                        print(e)
+                        time.sleep(retry_delay)
+                else:
+                    st.error("Thumbnail generation failed after multiple attempts.")
 
             if image_outputs:
                 st.write("✅ Thumbnails generated")
