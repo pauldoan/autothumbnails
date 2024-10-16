@@ -103,7 +103,7 @@ if uploaded_file is not None:
             transcript_output = None
 
             with st.spinner(
-                "Transcribing audio to text...This can take a few seconds if the model is cold on Replicate..."
+                "Transcribing audio to text... This may take a few moments, especially if the model is cold or there is a queue on Replicate..."
             ):
                 for attempt in range(max_retries):
                     try:
