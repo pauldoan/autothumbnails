@@ -122,7 +122,7 @@ if uploaded_file is not None:
                     except replicate.exceptions.ReplicateError as e:
                         if "503" in str(e):
                             st.error(
-                                "Replicate is currently experiencing issues (503 Internal Server Error). Please try again later."
+                                "We're experiencing a temporary issue with our AI service (Replicate), which hosts the machine learning models used in this app. Replicate is currently unavailable (503 Internal Server Error). Please try again in a few minutes. If the problem persists, you can check Replicate's status at https://status.replicate.com/"
                             )
                             st.stop()  # Stop execution here
                         print(e)
