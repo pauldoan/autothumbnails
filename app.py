@@ -36,10 +36,14 @@ st.markdown(
 )
 
 # File uploader for audio or video files
-uploaded_file = st.file_uploader("Upload an audio or video file", type=["mp3", "m4a", "wav", "mp4", "mov", "avi"])
+uploaded_file = st.file_uploader(
+    "Upload an audio or video file", type=["mp3", "m4a", "wav", "mp4", "mov", "avi"]
+)
 
 # Input for number of thumbnails to generate
-num_thumbnails = st.number_input("Number of thumbnails to generate", min_value=1, max_value=4, value=4, step=1)
+num_thumbnails = st.number_input(
+    "Number of thumbnails to generate", min_value=1, max_value=4, value=4, step=1
+)
 
 # Image generation model selector
 model_options = {
@@ -49,7 +53,9 @@ model_options = {
     "SDXL Lightning": "bytedance/sdxl-lightning-4step:5599ed30703defd1d160a25a63321b4dec97101d98b4674bcc56e41f62f35637",
 }
 
-selected_model = st.selectbox("Choose the Image Generation Model", options=list(model_options.keys()), index=0)
+selected_model = st.selectbox(
+    "Choose the Image Generation Model", options=list(model_options.keys()), index=0
+)
 image_generation_model = model_options[selected_model]
 
 # If a file is uploaded, proceed with the processing
@@ -88,7 +94,6 @@ if uploaded_file is not None:
 
         # When the button is clicked, proceed with transcription, summarization, and thumbnail generation
         if generate_button:
-
             # Prepare for Speech-to-Text
             input_audio = {
                 "audio": mp3_data,
@@ -114,13 +119,18 @@ if uploaded_file is not None:
                         )
                         if transcript_output:
                             break  # Exit the loop if successful
-
-                    except Exception as e:
+                    except replicate.exceptions.ReplicateError as e:
+                        if "503" in str(e):
+                            st.error(
+                                "Replicate is currently experiencing issues (503 Internal Server Error). Please try again later."
+                            )
+                            st.stop()  # Stop execution here
                         print(e)
                         time.sleep(retry_delay)
                 else:
                     # This block runs if all retries fail
                     st.error("Transcription failed after multiple attempts.")
+                    st.stop()  # Stop execution here
 
             if transcript_output:
                 st.write("✅ Transcription completed")
@@ -136,7 +146,9 @@ if uploaded_file is not None:
                 for attempt in range(max_retries):
                     try:
                         image_prompt = replicate.run(
-                            "meta/meta-llama-3-8b-instruct", input={"prompt": prompt}, wait=True
+                            "meta/meta-llama-3-8b-instruct",
+                            input={"prompt": prompt},
+                            wait=True,
                         )
                         if image_prompt:
                             break  # Exit the loop if successful
@@ -152,7 +164,11 @@ if uploaded_file is not None:
             print(image_prompt)
 
             with st.spinner("Creating thumbnails based on the summary..."):
-                image_input = {"prompt": image_prompt, "num_outputs": num_thumbnails, "output_quality": 100}
+                image_input = {
+                    "prompt": image_prompt,
+                    "num_outputs": num_thumbnails,
+                    "output_quality": 100,
+                }
 
                 for attempt in range(max_retries):
                     try:
@@ -161,7 +177,9 @@ if uploaded_file is not None:
                             "num_outputs": num_thumbnails,
                             "output_quality": 100,
                         }
-                        image_outputs = replicate.run(image_generation_model, input=image_input, wait=True)
+                        image_outputs = replicate.run(
+                            image_generation_model, input=image_input, wait=True
+                        )
                         if image_outputs:
                             break  # Exit the loop if successful
                     except Exception as e:
@@ -177,7 +195,9 @@ if uploaded_file is not None:
             cols = st.columns(len(image_outputs))
             for idx, image_output in enumerate(image_outputs):
                 # If image_output is an in-memory file-like object, read directly from it
-                img = Image.open(BytesIO(image_output.read()))  # Open directly without further requests
+                img = Image.open(
+                    BytesIO(image_output.read())
+                )  # Open directly without further requests
                 with cols[idx]:
                     st.image(img, caption=f"Thumbnail {idx + 1}", use_column_width=True)
 
