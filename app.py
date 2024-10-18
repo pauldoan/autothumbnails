@@ -42,7 +42,7 @@ uploaded_file = st.file_uploader(
 
 # Input for number of thumbnails to generate
 num_thumbnails = st.number_input(
-    "Number of thumbnails to generate", min_value=1, max_value=4, value=4, step=1
+    "Number of thumbnails to generate", min_value=1, max_value=4, value=2, step=1
 )
 
 # Image generation model selector

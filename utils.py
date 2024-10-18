@@ -73,31 +73,31 @@ def extract_audio_from_video(video_file):
     """
     print("Extracting audio from video...")
 
-    # Save the video file-like object to a temporary file
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_video_file:
-        temp_video_file.write(video_file.read())
-        temp_video_path = temp_video_file.name
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Save the video file-like object to a temporary file
+        temp_video_path = os.path.join(temp_dir, "temp_video.mp4")
+        with open(temp_video_path, "wb") as temp_video_file:
+            temp_video_file.write(video_file.read())
 
-    # Load the video clip from the temporary file path
-    video_clip = VideoFileClip(temp_video_path)
-    audio_clip = video_clip.audio
+        # Load the video clip from the temporary file path
+        video_clip = VideoFileClip(temp_video_path, verbose=False)
+        audio_clip = video_clip.audio
 
-    # Create a temporary file to save the audio
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio_file:
-        temp_audio_path = temp_audio_file.name
+        # Create a temporary file to save the audio
+        temp_audio_path = os.path.join(temp_dir, "temp_audio.wav")
 
-    # Write the audio clip to the temporary audio file
-    audio_clip.write_audiofile(temp_audio_path, codec="pcm_s16le")
+        # Write the audio clip to the temporary audio file
+        audio_clip.write_audiofile(
+            temp_audio_path, codec="pcm_s16le", verbose=False, logger=None
+        )
 
-    # Load the audio data into a BytesIO object
-    audio_buffer = BytesIO()
-    with open(temp_audio_path, "rb") as temp_audio:
-        audio_buffer.write(temp_audio.read())
+        # Load the audio data into a BytesIO object
+        audio_buffer = BytesIO()
+        with open(temp_audio_path, "rb") as temp_audio:
+            audio_buffer.write(temp_audio.read())
 
-    # Clean up the temporary files
-    video_clip.close()
-    os.remove(temp_video_path)
-    os.remove(temp_audio_path)
+        # Clean up
+        video_clip.close()
 
     # Rewind the BytesIO buffer for further reading
     audio_buffer.seek(0)
@@ -129,4 +129,6 @@ def process_file_to_mp3(file):
         return process_audio_to_mp3(audio_buffer)
 
     else:
-        raise ValueError("Unsupported file type. Only audio and video files are supported.")
+        raise ValueError(
+            "Unsupported file type. Only audio and video files are supported."
+        )
